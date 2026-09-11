@@ -9,11 +9,10 @@ import torch
 from PIL import Image
 
 from predict import (
-    CLASS_TO_NUMBER,
     MODEL_PATH,
     PROJECT_CLASS_ORDER,
-    get_transform,
     load_model,
+    predict_loaded_image,
 )
 
 
@@ -54,8 +53,6 @@ def predict_folder(
     details_csv.parent.mkdir(parents=True, exist_ok=True)
 
     model, classes, device, checkpoint = load_model(model_path)
-    transform = get_transform()
-
     image_paths = collect_images(input_dir=input_dir, recursive=recursive)
 
     if not image_paths:
@@ -75,48 +72,40 @@ def predict_folder(
     with torch.no_grad():
         for image_path in image_paths:
             image = Image.open(image_path).convert("RGB")
-            image_tensor = transform(image).unsqueeze(0).to(device)
-
-            start_time = time.time()
-
-            outputs = model(image_tensor)
-            probabilities = torch.softmax(outputs, dim=1)[0]
-
-            elapsed_time = time.time() - start_time
-
-            pred_idx = int(torch.argmax(probabilities).item())
-            pred_class = classes[pred_idx]
-            pred_number = CLASS_TO_NUMBER[pred_class]
-            confidence = float(probabilities[pred_idx].detach().cpu().item())
+            result = predict_loaded_image(
+                image=image,
+                model=model,
+                classes=classes,
+                device=device,
+                checkpoint=checkpoint,
+                image_path=image_path,
+            )
 
             # Test script için kritik format:
             # filename.jpg | Tahmin: 6
-            txt_lines.append(f"{image_path.name} | Tahmin: {pred_number}")
+            txt_lines.append(
+                f"{image_path.name} | Tahmin: {result['predicted_number']}"
+            )
 
             row = {
                 "filename": image_path.name,
                 "path": str(image_path),
-                "predicted_class": pred_class,
-                "predicted_number": pred_number,
-                "confidence": confidence,
-                "elapsed_time": elapsed_time,
+                "predicted_class": result["predicted_class"],
+                "predicted_number": result["predicted_number"],
+                "confidence": result["confidence"],
+                "elapsed_time": result["elapsed_time"],
             }
 
-            for class_name in PROJECT_CLASS_ORDER:
-                if class_name in classes:
-                    class_index = classes.index(class_name)
-                    row[f"prob_{class_name}"] = float(
-                        probabilities[class_index].detach().cpu().item()
-                    )
-                else:
-                    row[f"prob_{class_name}"] = 0.0
+            for class_name, probability in result["probabilities"].items():
+                row[f"prob_{class_name}"] = probability
 
             csv_rows.append(row)
 
             print(
-                f"{image_path.name} -> {pred_class} "
-                f"({pred_number}) | confidence={confidence:.4f} | "
-                f"time={elapsed_time:.4f}s"
+                f"{image_path.name} -> {result['predicted_class']} "
+                f"({result['predicted_number']}) | "
+                f"confidence={result['confidence']:.4f} | "
+                f"time={result['elapsed_time']:.4f}s"
             )
 
     with open(output_txt, "w", encoding="utf-8") as file:

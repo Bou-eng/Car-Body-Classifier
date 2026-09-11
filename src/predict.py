@@ -119,19 +119,15 @@ def get_transform():
     )
 
 
-def predict_image(image_path: str | Path, model_path: str | Path = MODEL_PATH):
-    image_path = Path(image_path)
-    model_path = Path(model_path)
-
-    if not image_path.exists():
-        raise FileNotFoundError(f"Görsel bulunamadı: {image_path}")
-
-    model, classes, device, checkpoint = load_model(model_path)
-
-    transform = get_transform()
-
-    image = Image.open(image_path).convert("RGB")
-    image_tensor = transform(image).unsqueeze(0).to(device)
+def predict_loaded_image(
+    image: Image.Image,
+    model: nn.Module,
+    classes: list[str],
+    device: torch.device,
+    checkpoint: dict,
+    image_path: str | Path | None = None,
+):
+    image_tensor = get_transform()(image).unsqueeze(0).to(device)
 
     start_time = time.time()
 
@@ -151,20 +147,42 @@ def predict_image(image_path: str | Path, model_path: str | Path = MODEL_PATH):
         for i in range(len(classes))
     }
 
-    ordered_probabilities = {
-        class_name: probabilities_by_class.get(class_name, 0.0)
-        for class_name in PROJECT_CLASS_ORDER
-    }
-
-    return {
-        "image_path": str(image_path),
+    result = {
         "model_name": checkpoint["model_name"],
         "predicted_class": pred_class,
         "predicted_number": pred_number,
         "confidence": confidence,
-        "probabilities": ordered_probabilities,
+        "probabilities": {
+            class_name: probabilities_by_class.get(class_name, 0.0)
+            for class_name in PROJECT_CLASS_ORDER
+        },
         "elapsed_time": elapsed_time,
     }
+
+    if image_path is not None:
+        result["image_path"] = str(image_path)
+
+    return result
+
+
+def predict_image(image_path: str | Path, model_path: str | Path = MODEL_PATH):
+    image_path = Path(image_path)
+    model_path = Path(model_path)
+
+    if not image_path.exists():
+        raise FileNotFoundError(f"Görsel bulunamadı: {image_path}")
+
+    model, classes, device, checkpoint = load_model(model_path)
+
+    image = Image.open(image_path).convert("RGB")
+    return predict_loaded_image(
+        image=image,
+        model=model,
+        classes=classes,
+        device=device,
+        checkpoint=checkpoint,
+        image_path=image_path,
+    )
 
 
 def main():

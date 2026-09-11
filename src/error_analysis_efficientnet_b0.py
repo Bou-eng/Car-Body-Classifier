@@ -53,7 +53,7 @@ def main() -> None:
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    train_dataset, val_dataset = get_datasets()
+    _, val_dataset = get_datasets()
 
     checkpoint = torch.load(MODEL_PATH, map_location=device)
 
