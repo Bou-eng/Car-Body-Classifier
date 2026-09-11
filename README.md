@@ -686,6 +686,12 @@ Then run:
 streamlit run app/app.py
 ```
 
+Or try it hosted at:
+
+```text
+https://car-body-classifier.streamlit.app/
+```
+
 ### Prediction is slow
 
 Use a GPU if available. The model is lightweight, but CPU inference can still be slower depending on hardware.
